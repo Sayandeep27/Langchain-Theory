@@ -2,21 +2,18 @@
 
 ## Foundation of AI-Powered Search
 
+---
+
 Approximate Nearest Neighbor (ANN) Search is a technique used to quickly find vectors that are most similar to a query vector — without checking every single data point exactly.
 
 It is the core engine behind modern AI search systems, including:
 
-Vector databases
-
-RAG systems
-
-Semantic search
-
-Recommendation engines
-
-Image similarity search
-
-LLM retrieval pipelines
+* Vector databases
+* RAG systems
+* Semantic search
+* Recommendation engines
+* Image similarity search
+* LLM retrieval pipelines
 
 ---
 
@@ -30,9 +27,9 @@ User uploads an image and asks:
 
 “Find similar images.”
 
-Two ways to search:
+### Two ways to search:
 
-### A. Exact Search (Brute Force)
+#### A. Exact Search (Brute Force)
 
 Check similarity with every image.
 
@@ -40,13 +37,11 @@ Query → compare with all vectors → choose closest
 
 Problems:
 
-Extremely slow
+* Extremely slow
+* Expensive computation
+* Not scalable
 
-Expensive computation
-
-Not scalable
-
-### B. ANN Search (Smart Approximation)
+#### B. ANN Search (Smart Approximation)
 
 Instead of checking everything:
 
@@ -54,11 +49,9 @@ Query → smart shortcuts → search likely regions → return very close matche
 
 Result:
 
-1000x faster
-
-Slight approximation
-
-Almost same accuracy
+* 1000x faster
+* Slight approximation
+* Almost same accuracy
 
 This is ANN Search.
 
@@ -70,7 +63,7 @@ Data in AI is stored as vectors:
 
 Example embedding:
 
-```
+```text
 "cat" → [0.21, -0.8, 0.44, ...]
 "dog" → [0.25, -0.75, 0.40, ...]
 ```
@@ -83,13 +76,10 @@ Nearest vectors to query vector
 
 using distance metrics like:
 
-Cosine similarity (most common in NLP)
-
-Euclidean distance
-
-Manhattan distance
-
-Hamming distance (binary vectors)
+* Cosine similarity (most common in NLP)
+* Euclidean distance
+* Manhattan distance
+* Hamming distance (binary vectors)
 
 ---
 
@@ -99,17 +89,14 @@ Hamming distance (binary vectors)
 
 Modern embeddings have:
 
-384 dimensions
-
-768 dimensions
-
-1536 dimensions
-
-even 4096+
+* 384 dimensions
+* 768 dimensions
+* 1536 dimensions
+* even 4096+
 
 This causes:
 
-Curse of Dimensionality
+**Curse of Dimensionality**
 
 In high dimensions:
 
@@ -119,15 +106,14 @@ Exact search becomes extremely expensive.
 
 Exact KNN complexity:
 
-```
+```text
 O(N × D)
 ```
 
 Where:
 
-N = number of vectors
-
-D = dimensions
+* N = number of vectors
+* D = dimensions
 
 For billions of vectors → impossible in real-time.
 
@@ -135,9 +121,10 @@ For billions of vectors → impossible in real-time.
 
 Trade:
 
+```text
 100% accuracy  →  95–99% accuracy
-
 VERY slow      →  EXTREMELY fast
+```
 
 This tradeoff makes AI search practical.
 
@@ -147,11 +134,9 @@ This tradeoff makes AI search practical.
 
 ### Step 1 — Convert Data to Vectors
 
-Text → Embedding model → Vector
-
-Image → CNN/CLIP → Vector
-
-Audio → Encoder → Vector
+* Text → Embedding model → Vector
+* Image → CNN/CLIP → Vector
+* Audio → Encoder → Vector
 
 ### Step 2 — Build Efficient Index
 
@@ -159,19 +144,16 @@ ANN builds special structures instead of raw storage.
 
 Examples:
 
-Graph structures
-
-Hash buckets
-
-Trees
-
-Clusters
+* Graph structures
+* Hash buckets
+* Trees
+* Clusters
 
 ### Step 3 — Query Search
 
 Instead of scanning all data:
 
-```
+```text
 Start near good candidate
       ↓
 Jump through neighbors
@@ -191,65 +173,63 @@ Idea:
 
 Similar vectors fall into same bucket.
 
+```text
 Vector → hash → bucket
+```
 
 Search only inside bucket.
 
 Pros:
 
-Very fast
+* Very fast
 
 Cons:
 
-Lower accuracy
+* Lower accuracy
+
+---
 
 ### 2. Graph-Based ANN (Most Popular Today)
 
 Data represented as a graph:
 
-Node = Vector
-
-Edge = similarity
+* Node = Vector
+* Edge = similarity
 
 Search becomes navigation.
 
 Example algorithms:
 
-HNSW (Hierarchical Navigable Small World) ← industry standard
-
-NSW graphs
+* HNSW (Hierarchical Navigable Small World) ← industry standard
+* NSW graphs
 
 How it works:
 
-Start at entry node
-
-Move to closer neighbors
-
-Greedy traversal
-
-Reach nearest region
+* Start at entry node
+* Move to closer neighbors
+* Greedy traversal
+* Reach nearest region
 
 Used by:
 
-FAISS
+* FAISS
+* Pinecone
+* Weaviate
+* Milvus
+* Qdrant
 
-Pinecone
-
-Weaviate
-
-Milvus
-
-Qdrant
+---
 
 ### 3. Tree-Based Methods
 
 Examples:
 
-KD-Trees
-
-Ball Trees
+* KD-Trees
+* Ball Trees
 
 Good for low dimensions, weaker in high dimensions.
+
+---
 
 ### 4. Quantization-Based ANN
 
@@ -257,7 +237,7 @@ Compress vectors to speed search.
 
 Example:
 
-Product Quantization (PQ)
+* Product Quantization (PQ)
 
 Used in FAISS for billion-scale search.
 
@@ -279,19 +259,21 @@ Used in FAISS for billion-scale search.
 
 Vector databases store:
 
+```text
 ID | Vector | Metadata
+```
 
 When user queries:
 
+```text
 Query → embedding → ANN search → top-k vectors
+```
 
 ANN enables:
 
-Semantic retrieval
-
-Context search
-
-Similarity lookup
+* Semantic retrieval
+* Context search
+* Similarity lookup
 
 Without ANN, vector DBs would not scale.
 
@@ -301,7 +283,7 @@ Without ANN, vector DBs would not scale.
 
 RAG retrieval step:
 
-```
+```text
 User Question
       ↓
 Embedding Model
@@ -319,25 +301,27 @@ ANN = retrieval engine of RAG.
 
 ## 9. Real-World Applications
 
-Image Recognition
+### Image Recognition
 
 Find visually similar images instantly.
 
-Music Recommendation
+### Music Recommendation
 
 Spotify-like systems:
 
+```text
 User taste vector → ANN → similar songs
+```
 
-Medical Imaging
+### Medical Imaging
 
 Find similar MRI/X-ray scans.
 
-Semantic Search
+### Semantic Search
 
 Search by meaning instead of keywords.
 
-Chatbots / LLM Memory
+### Chatbots / LLM Memory
 
 Retrieve relevant documents.
 
@@ -367,7 +351,7 @@ Milliseconds retrieval.
 
 ANN introduces a parameter:
 
-Recall = % of true neighbors found
+**Recall = % of true neighbors found**
 
 Example:
 
@@ -386,19 +370,18 @@ In AI search:
 
 To improve performance:
 
-Dimensionality Reduction
+### Dimensionality Reduction
 
-PCA
-
-t-SNE
+* PCA
+* t-SNE
 
 Reduce noise and computation.
 
-Feature Scaling
+### Feature Scaling
 
 Ensure features contribute equally.
 
-Index Optimization
+### Index Optimization
 
 Tune graph connections or clusters.
 
@@ -414,7 +397,9 @@ Similarity search at scale requires ANN.
 
 Therefore:
 
+```text
 Embeddings → ANN → Vector DB → RAG → LLM Apps
+```
 
 ANN is literally the search layer of AI.
 
@@ -423,3 +408,7 @@ ANN is literally the search layer of AI.
 ## 14. One-Line Summary
 
 ANN Search is a fast similarity search technique that finds approximately closest vectors instead of exact matches, enabling scalable semantic search in AI systems.
+
+---
+
+### GitHub Ready • Clean Documentation • Production Learning Resource
