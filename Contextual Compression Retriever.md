@@ -311,7 +311,22 @@ Contextual compression reduces document size BEFORE LLM sees it.
 # 15. LLMChainExtractor (Extraction Compression)
 
 ```python
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMChainExtractor
+
+# create compressor
 compressor = LLMChainExtractor.from_llm(llm)
+
+# wrap retriever with compression
+compression_retriever = ContextualCompressionRetriever(
+    base_compressor=compressor,
+    base_retriever=retriever
+)
+
+# run query
+compressed_docs = compression_retriever.invoke(
+    "What did the president say about Ketanji Jackson Brown"
+)
 ```
 
 ### Concept
