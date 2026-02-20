@@ -13,7 +13,7 @@
 ### Example Vocabulary
 
 ```
-["machine", "learning", "dog", "cat", "finance","is","powerful"]
+["machine", "learning", "dog", "cat", "finance","is","powerful","AI","Coding","why?"]
 ```
 
 ### Document
@@ -25,7 +25,7 @@
 ### Vector Representation
 
 ```
-[1, 1, 0, 0, 0,1,1]
+[1, 1, 0, 0, 0, 1, 1, 0, 0, 0]
 ```
 
 Mostly zeros → **Sparse Vector**
