@@ -1,674 +1,412 @@
-# RAG Fusion with LangChain — Complete Step‑by‑Step Guide
+# RAG Fusion + Reranking Architecture
 
 ---
 
-## Overview
+# Table of Contents
 
-This repository demonstrates **RAG Fusion (Retrieval‑Augmented Generation Fusion)** using **LangChain**, **Gemini LLM**, **Chroma Vector DB**, and **BGE embeddings**.
-
-The notebook builds a full pipeline that:
-
-1. Loads documents
-2. Splits text into chunks
-3. Creates embeddings
-4. Stores vectors in Chroma
-5. Retrieves relevant documents
-6. Generates answers using an LLM
-7. Improves retrieval using **RAG Fusion + Reciprocal Rank Fusion (RRF)**
-
----
-
-## What is RAG Fusion?
-
-**RAG Fusion** improves traditional RAG by:
-
-* Generating **multiple search queries** from a single user question
-* Retrieving documents for each query
-* Combining results using **Reciprocal Rank Fusion (RRF)**
-
-This increases recall and reduces retrieval bias.
+1. Introduction
+2. Problem with Basic RAG
+3. What is RAG Fusion?
+4. What is Reranking?
+5. Why Combine Fusion + Reranking?
+6. Industry Standard Architecture
+7. Complete Pipeline Flow
+8. Reciprocal Rank Fusion (RRF)
+9. Reranking Models
+10. Full Implementation (Python + LangChain)
+11. Advanced Production Stack
+12. Performance Comparison
+13. When to Use This Architecture
+14. Best Practices
+15. Common Mistakes
+16. Interview Definition
+17. Project Structure Example
+18. References
 
 ---
 
-## Environment Setup
+# 1. Introduction
 
-### Install Dependencies
+**RAG Fusion + Reranking** is an advanced retrieval architecture designed to improve:
 
-```python
-# Open In Colab
-# RAG Fusion
+* Retrieval Recall (finding all relevant information)
+* Retrieval Precision (keeping only the best information)
+* LLM Answer Quality
+* Hallucination Reduction
 
-!pip -q install langchain huggingftiktace_hub oken pypdf
-!pip -q install google-generativeai chromadb
-!pip -q install sentence_transformers
+Modern AI systems do NOT rely on single vector search anymore.
 
-!pip install -U langchain-community
-```
-
-### Explanation
-
-| Package               | Purpose                     |
-| --------------------- | --------------------------- |
-| langchain             | LLM orchestration framework |
-| chromadb              | Vector database             |
-| google-generativeai   | Gemini API                  |
-| sentence_transformers | Embeddings                  |
-| langchain-community   | Additional integrations     |
+Instead, they use **multi‑stage retrieval pipelines**.
 
 ---
 
-## Utility Function
+# 2. Problem with Basic RAG
 
-### Text Wrapper
+## Basic RAG Flow
 
-```python
-import textwrap
-
-def wrap_text(text, width=90):
-    lines = text.split('\n')
-    wrapped_lines = [textwrap.fill(line, width=width) for line in lines]
-    wrapped_text = '\n'.join(wrapped_lines)
-    return wrapped_text
+```
+User Query → Embedding → Vector Search → Top‑K Chunks → LLM
 ```
 
-### Purpose
+### Issues
 
-* Formats long LLM outputs
-* Improves readability in notebooks
+| Problem           | Explanation                           |
+| ----------------- | ------------------------------------- |
+| Query ambiguity   | One query cannot capture all meanings |
+| Missed context    | Relevant docs may not be retrieved    |
+| Semantic mismatch | Embeddings approximate meaning        |
+| Noise             | Irrelevant chunks included            |
+
+Result → Lower answer accuracy.
 
 ---
 
-## API Key Setup
+# 3. What is RAG Fusion?
 
-```python
-import os
-from google.colab import userdata
+RAG Fusion improves **recall** by generating multiple search queries.
 
-GOOGLE_API_KEY = userdata.get('GOOGLE_API_KEY')
-os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+## Core Idea
+
+Instead of searching once:
+
+```
+1 query → 1 retrieval
 ```
 
-### Explanation
+We do:
 
-* Fetches stored Colab secret
-* Sets environment variable for Gemini access
+```
+Multiple queries → Multiple retrievals → Fusion
+```
+
+### Example
+
+User Question:
+
+```
+How memory works in LangChain?
+```
+
+Generated Queries:
+
+```
+- types of langchain memory
+- conversation buffer memory
+- entity memory langchain
+- chat history storage langchain
+```
+
+Each retrieves different documents.
 
 ---
 
-## Install Gemini Integration
+# 4. What is Reranking?
 
-```python
-%pip install --upgrade --quiet langchain-google-genai
+Reranking improves **precision**.
+
+A reranker evaluates relevance by reading:
+
 ```
+(Query + Document) together
+```
+
+Unlike embeddings, which compare vectors separately.
+
+## Embedding Search vs Reranker
+
+| Feature  | Embeddings        | Reranker        |
+| -------- | ----------------- | --------------- |
+| Speed    | Fast              | Slower          |
+| Accuracy | Approximate       | High            |
+| Method   | Vector similarity | Cross attention |
+| Purpose  | Recall            | Precision       |
 
 ---
 
-## Initialize LLM
+# 5. Why Combine Fusion + Reranking?
 
-```python
-from langchain_google_genai import ChatGoogleGenerativeAI
-
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")
-
-result = llm.invoke("Write a ballad about LangChain")
-print(result.content)
+```
+RAG Fusion  → Find EVERYTHING relevant
+Reranker    → Keep ONLY best results
 ```
 
-### What Happens Here
+Analogy:
 
-* Loads Gemini 1.5 Pro
-* Sends prompt
-* Receives generated text
+| Stage    | Role                  |
+| -------- | --------------------- |
+| Fusion   | HR collects resumes   |
+| Reranker | Technical interview   |
+| LLM      | Final hiring decision |
 
 ---
 
-## Imports
+# 6. Industry Standard Architecture
 
-```python
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores.chroma import Chroma
-import langchain
 ```
-
-### Role
-
-| Component    | Purpose         |
-| ------------ | --------------- |
-| TextSplitter | Chunk documents |
-| Chroma       | Vector storage  |
-| langchain    | Debug utilities |
-
----
-
-## Load Documents
-
-```python
-from langchain.document_loaders import DirectoryLoader
-from langchain.document_loaders import TextLoader
-```
-
-### Mount Google Drive
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-```
-
-### Dataset Path
-
-```python
-data_path="/content/drive/MyDrive/English"
-```
-
-### Install Loader Dependency
-
-```python
-!pip install unstructured
-```
-
-### Load Files
-
-```python
-%%time
-loader = DirectoryLoader(data_path, glob="*.txt", show_progress=True)
-docs = loader.load()
-```
-
-### Explanation
-
-* Reads all `.txt` files
-* Converts them into LangChain Documents
-
----
-
-## Inspect Documents
-
-```python
-len(docs)
-
-docs = docs[:50]
-len(docs)
-
-docs[0]
-```
-
-```python
-print(docs[2].page_content)
-print(docs[1].page_content)
-```
-
-### Purpose
-
-* Validate data loading
-* Reduce dataset size for experimentation
-
----
-
-## Merge Raw Text
-
-```python
-raw_text = ''
-for i, doc in enumerate(docs):
-    text = doc.page_content
-    if text:
-        raw_text += text
-
-print(raw_text)
-```
-
-### Why Merge?
-
-Creates one continuous corpus for chunking.
-
----
-
-## Text Chunking
-
-```python
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size = 500,
-    chunk_overlap  = 100,
-    length_function = len,
-    is_separator_regex = False,
-)
-```
-
-### Parameters
-
-| Parameter       | Meaning              |
-| --------------- | -------------------- |
-| chunk_size      | characters per chunk |
-| chunk_overlap   | shared context       |
-| length_function | measurement function |
-
-### Split Text
-
-```python
-texts = text_splitter.split_text(raw_text)
-
-len(texts)
-print(texts[4])
+                USER QUERY
+                     │
+                     ▼
+            Query Expansion (LLM)
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+     Query1       Query2       Query3
+        │            │            │
+        └──── Vector Retrieval ───┘
+                     │
+              RAG Fusion (RRF)
+                     │
+           Candidate Documents
+                     │
+                 RERANKER
+                     │
+             Top‑K Documents
+                     │
+                    LLM
+                     │
+               Final Answer
 ```
 
 ---
 
-## BGE Embeddings
+# 7. Complete Pipeline Flow
 
-```python
-from langchain.embeddings import HuggingFaceBgeEmbeddings
-```
+## Step 1 — Query Expansion
 
-```python
-model_name = "BAAI/bge-small-en-v1.5"
-encode_kwargs = {'normalize_embeddings': True}
-```
+LLM generates multiple semantic variations.
 
-```python
-embedding_function = HuggingFaceBgeEmbeddings(
-    model_name=model_name,
-    encode_kwargs=encode_kwargs,
-)
-```
+## Step 2 — Parallel Retrieval
 
-### Why Normalize?
+Each query retrieves documents independently.
 
-Normalization enables cosine similarity comparison.
+## Step 3 — Rank Fusion
 
----
+Combine ranked results using RRF.
 
-## Create Vector Database
+## Step 4 — Reranking
 
-```python
-%%time
+Cross‑encoder scores true relevance.
 
-db = Chroma.from_texts(
-    texts,
-    embedding_function,
-    persist_directory="./chroma_db"
-)
-```
+## Step 5 — Context Selection
 
-### What Happens
+Select top documents only.
 
-1. Convert chunks → embeddings
-2. Store vectors in Chroma
-3. Persist locally
+## Step 6 — Generation
+
+LLM produces grounded answer.
 
 ---
 
-## Similarity Search
+# 8. Reciprocal Rank Fusion (RRF)
 
-```python
-query = "Tell me about Universal Studios Singapore?"
+RRF merges multiple ranked lists.
 
-db.similarity_search(query, k=5)
-```
-
-### Result
-
-Returns top‑K similar chunks.
-
----
-
-## Setup Retriever
-
-```python
-retriever = db.as_retriever()
-
-retriever.get_relevant_documents(query)
-```
-
-### Retriever Role
-
-Abstraction layer over vector search.
-
----
-
-## Build Basic RAG Chain
-
-```python
-from operator import itemgetter
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
-```
-
-### Prompt Template
-
-```python
-template = """Answer the question based only on the following context:
-{context}
-
-Question: {question}
-"""
-
-prompt = ChatPromptTemplate.from_template(template)
-```
-
-### Chain Construction
-
-```python
-chain = (
-    {"context": retriever, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
-```
-
-### Execute
-
-```python
-text_reply = chain.invoke("Tell me about Universal Studio Singapore")
-print(wrap_text(text_reply))
-```
-
-### Pipeline Flow
+## Formula
 
 ```
-Question
-   ↓
-Retriever
-   ↓
-Prompt
-   ↓
-LLM
-   ↓
-Parsed Output
-```
-
----
-
-# RAG Fusion Section
-
----
-
-## Query Generation Prompt
-
-```python
-from langchain.schema.output_parser import StrOutputParser
-from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.prompts import ChatMessagePromptTemplate, PromptTemplate
-```
-
-```python
-prompt = ChatPromptTemplate(
-    input_variables=['original_query'],
-    messages=[
-        SystemMessagePromptTemplate(
-            prompt=PromptTemplate(
-                input_variables=[],
-                template='You are a helpful assistant that generates multiple search queries based on a single input query.'
-            )
-        ),
-        HumanMessagePromptTemplate(
-            prompt=PromptTemplate(
-                input_variables=['original_query'],
-                template='Generate multiple search queries related to: {question} \n OUTPUT (4 queries):'
-            )
-        )
-    ]
-)
-```
-
-### Goal
-
-Generate multiple semantic variations of a query.
-
----
-
-## Original Query
-
-```python
-original_query = "universal studios Singapore"
-```
-
----
-
-## Query Generation Chain
-
-```python
-generate_queries = (
-    prompt
-    | llm
-    | StrOutputParser()
-    | (lambda x: x.split("\n"))
-)
-```
-
-### Output Example
-
-```
-1. Universal Studios Singapore attractions
-2. Theme parks in Singapore
-3. USS rides and tickets
-4. Singapore amusement parks
-```
-
----
-
-## Reciprocal Rank Fusion (RRF)
-
-```python
-from langchain.load import dumps, loads
-```
-
-```python
-def reciprocal_rank_fusion(results: list[list], k=60):
-    fused_scores = {}
-    for docs in results:
-        for rank, doc in enumerate(docs):
-            doc_str = dumps(doc)
-            if doc_str not in fused_scores:
-                fused_scores[doc_str] = 0
-            previous_score = fused_scores[doc_str]
-            fused_scores[doc_str] += 1 / (rank + k)
-
-    reranked_results = [
-        (loads(doc), score)
-        for doc, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-    ]
-    return reranked_results
-```
-
-### Mathematical Idea
-
-RRF score:
-
-```
-Score(d) = Σ 1 / (k + rank)
+Score(d) = Σ 1 / (k + rank(d))
 ```
 
 Where:
 
-* `rank` = position in each retrieval list
-* `k` = smoothing constant
+* rank(d) = document position
+* k = constant (usually 60)
+
+Documents appearing across searches receive higher scores.
+
+## Example
+
+| Document | Q1 Rank | Q2 Rank | Score  |
+| -------- | ------- | ------- | ------ |
+| Doc A    | 1       | 3       | High   |
+| Doc B    | 2       | —       | Medium |
+| Doc C    | —       | 1       | Medium |
 
 ---
 
-## RAG Fusion Retrieval Chain
+# 9. Reranking Models
 
-```python
-ragfusion_chain = generate_queries | retriever.map() | reciprocal_rank_fusion
+## Lightweight (Fast)
+
+* FlashRank
+* bge-reranker-base
+* jina-reranker
+
+## High Accuracy
+
+* CrossEncoder (SentenceTransformers)
+* Cohere Rerank
+* OpenAI Rerank models
+
+---
+
+# 10. Full Implementation (Python + LangChain)
+
+## Install Dependencies
+
+```bash
+pip install langchain sentence-transformers faiss-cpu
 ```
 
-### Flow
+---
+
+## Query Generation
+
+```python
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+
+prompt = PromptTemplate(
+    input_variables=["question"],
+    template="Generate 4 search queries for: {question}"
+)
+
+query_chain = LLMChain(llm=llm, prompt=prompt)
+queries = query_chain.run(question).split("\n")
+```
+
+---
+
+## Retrieval
+
+```python
+all_docs = []
+for q in queries:
+    docs = retriever.get_relevant_documents(q)
+    all_docs.append(docs)
+```
+
+---
+
+## Reciprocal Rank Fusion
+
+```python
+def reciprocal_rank_fusion(results, k=60):
+    scores = {}
+    for docs in results:
+        for rank, doc in enumerate(docs):
+            scores[doc] = scores.get(doc, 0) + 1/(k + rank)
+    return sorted(scores, key=scores.get, reverse=True)
+
+fused_docs = reciprocal_rank_fusion(all_docs)
+```
+
+---
+
+## Reranking
+
+```python
+from sentence_transformers import CrossEncoder
+
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+pairs = [(question, doc.page_content) for doc in fused_docs]
+scores = reranker.predict(pairs)
+
+reranked_docs = [doc for _, doc in sorted(zip(scores, fused_docs), reverse=True)]
+```
+
+---
+
+## Final Generation
+
+```python
+context = reranked_docs[:5]
+response = llm.invoke(str(context) + question)
+```
+
+---
+
+# 11. Advanced Production Stack
+
+Modern enterprise systems often use:
 
 ```
 User Query
-     ↓
-Generate Multiple Queries
-     ↓
-Retrieve per Query
-     ↓
-Fuse Rankings (RRF)
+   │
+Query Rewriting
+   │
+Hybrid Search (BM25 + Vector)
+   │
+RAG Fusion (RRF)
+   │
+Reranker
+   │
+Context Compression
+   │
+LLM Generation
 ```
 
 ---
 
-## Debug Mode
+# 12. Performance Comparison
 
-```python
-langchain.debug = True
-```
-
-Shows internal execution traces.
-
----
-
-## Input Schema
-
-```python
-ragfusion_chain.input_schema.schema()
-```
-
-Displays expected inputs.
+| Metric         | Basic RAG | Fusion + Rerank  |
+| -------------- | --------- | ---------------- |
+| Recall         | Medium    | Very High        |
+| Precision      | Medium    | High             |
+| Hallucination  | Higher    | Lower            |
+| Answer Quality | Good      | Production Grade |
 
 ---
 
-## Execute Fusion Retrieval
-
-```python
-ragfusion_chain.invoke({"question": original_query})
-```
-
-Returns reranked documents.
-
----
-
-## Final RAG Fusion QA Chain
-
-```python
-from langchain.schema.runnable import RunnablePassthrough
-```
-
-```python
-template = """Answer the question based only on the following context:
-{context}
-
-Question: {question}
-"""
-
-prompt = ChatPromptTemplate.from_template(template)
-```
-
-```python
-full_rag_fusion_chain = (
-    {
-        "context": ragfusion_chain,
-        "question": RunnablePassthrough()
-    }
-    | prompt
-    | llm
-    | StrOutputParser()
-)
-```
-
----
-
-## Inspect Schema
-
-```python
-full_rag_fusion_chain.input_schema.schema()
-```
-
----
-
-## Run Final Query
-
-```python
-full_rag_fusion_chain.invoke({
-    "question": "Tell me about Singapore’s nightlife scene?"
-})
-```
-
-### Example Output
-
-```
-Singapore’s nightlife scene is incredibly diverse, offering a blend of high-energy clubs and more relaxed options for a night out...
-```
-
----
-
-# Architecture Summary
-
-```
-User Question
-      ↓
-Query Expansion (LLM)
-      ↓
-Multiple Retrievals
-      ↓
-Reciprocal Rank Fusion
-      ↓
-Context Assembly
-      ↓
-LLM Answer Generation
-```
-
----
-
-# Why RAG Fusion Works Better
-
-| Traditional RAG   | RAG Fusion       |
-| ----------------- | ---------------- |
-| Single query      | Multiple queries |
-| Lower recall      | Higher recall    |
-| Sensitive wording | Robust retrieval |
-| Single ranking    | Rank fusion      |
-
----
-
-# Advantages
-
-* Improves retrieval diversity
-* Reduces missing context
-* Handles ambiguous questions
-* Better semantic coverage
-
----
-
-# Limitations
-
-* More LLM calls
-* Higher latency
-* Increased compute cost
-
----
-
-# When to Use RAG Fusion
+# 13. When to Use This Architecture
 
 Use when:
 
-* Knowledge bases are large
-* Queries are ambiguous
-* High recall is required
-* Enterprise search systems
+* Large document collections
+* Enterprise knowledge bases
+* Research assistants
+* Legal or financial documents
+* Multi-topic PDFs
+* High accuracy requirements
+
+Avoid for:
+
+* Small FAQ datasets
+* Simple chatbots
 
 ---
 
-# Key Concepts Recap
+# 14. Best Practices
 
-* Recursive Chunking
-* Dense Embeddings (BGE)
-* Vector Databases (Chroma)
-* Retrievers
-* Query Expansion
-* Reciprocal Rank Fusion
-* Runnable Pipelines
+* Use 3–5 query variations
+* Retrieve 30–50 candidates before reranking
+* Rerank down to 5–8 chunks
+* Keep chunk size ~300–600 tokens
+* Combine with hybrid search for best results
 
 ---
 
-# Conclusion
+# 15. Common Mistakes
 
-This notebook demonstrates a **production‑grade RAG Fusion pipeline** using LangChain.
+| Mistake                  | Why Wrong       |
+| ------------------------ | --------------- |
+| Using only vector search | Low recall      |
+| Skipping reranker        | Noisy context   |
+| Too many final chunks    | Token waste     |
+| Large chunk size         | Poor embeddings |
 
-You learned:
+---
 
-* Standard RAG
-* Multi‑query retrieval
-* Rank fusion
-* End‑to‑end LLM QA system
+# 16. Interview Definition
 
-RAG Fusion significantly improves answer quality by combining multiple retrieval perspectives before generation.
+**RAG Fusion + Reranking is a two‑stage retrieval architecture where multiple LLM‑generated query searches maximize recall and a cross‑encoder reranker refines results to maximize precision before final LLM generation.**
+
+---
+
+# 17. Project Structure Example
+
+```
+rag-project/
+│
+├── data/
+├── embeddings/
+├── retriever.py
+├── fusion.py
+├── reranker.py
+├── generator.py
+├── app.py
+└── README.md
+```
 
